@@ -13,7 +13,7 @@ const AirQualityChart = ({ data }) => {
   // Custom tooltip content style
   const tooltipStyle = {
     backgroundColor: 'white',
-    color: 'black',
+    color: 'white',
     border: '1px solid #ccc',
     borderRadius: '4px',
     padding: '10px',

@@ -1,8 +1,11 @@
+// Import necessary libraries and components
 "use client";
 import React, { useState } from 'react';
-import { Box, TextField, Button, Typography, CircularProgress, Grid } from '@mui/material';
-import Chart from 'react-apexcharts';
+import { Box, TextField, Button, Typography, CircularProgress, Grid, colors, FilledInput } from '@mui/material';
+import { BarChart, BarLabel } from '@mui/x-charts/BarChart';
 import ChartDetails from './ChartDetails';
+import { YAxis } from 'recharts';
+import { BarLabelComponent } from '@mui/x-charts/BarChart/BarLabel/BarLabel';
 
 const ZipCodeForm = () => {
     const [location, setLocation] = useState('');
@@ -14,6 +17,7 @@ const ZipCodeForm = () => {
     const [cityName, setCityName] = useState('');
     const [comparisonMode, setComparisonMode] = useState(false);
 
+    // Handle form submission for fetching air quality data
     const handleSubmit = async (event) => {
         event.preventDefault();
         setLoading(true);
@@ -47,6 +51,7 @@ const ZipCodeForm = () => {
         }
     };
 
+    // Handle fetching user location and air quality data
     const getUserLocation = async () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
@@ -89,6 +94,7 @@ const ZipCodeForm = () => {
         }
     };
 
+    // Handle fetching Seattle's air quality data for comparison
     const handleComparison = async () => {
         setLoading(true);
         try {
@@ -97,7 +103,6 @@ const ZipCodeForm = () => {
                 throw new Error('Failed to fetch comparison data');
             }
             const data = await response.json();
-            console.log('Seattle Data:', data); // Log data to check its structure
             setCompareData(data);
         } catch (error) {
             console.error('Error:', error);
@@ -108,89 +113,45 @@ const ZipCodeForm = () => {
         }
     };
 
-    // Transform data for the chart
-    const chartData = {
-        series: airQualityData ? airQualityData.map(item => ({
-            name: item.ParameterName,
-            data: [{ x: item.DateForecast, y: item.AQI }]
-        })) : [],
-        options: {
-            chart: {
-                type: 'bar'
-            },
-            xaxis: {
-                type: 'datetime'
-            },
-            yaxis: {
-                title: {
-                    text: 'AQI'
-                }
-            },
-            title: {
-                text: 'Air Quality Index by Pollutant',
-                align: 'left'
+    const airQualityParameters = airQualityData ? airQualityData.map(item => item.ParameterName) : [];
+    const yourLocationData = airQualityData ? airQualityData.map(item => item.AQI) : [];
+    const seattleData = compareData ? compareData.map(item => item.AQI) : [];
+
+    const colors = ['#ccebc5', '#a8ddb5', '#7bccc4', '#4eb3d3', '#2b8cbe', '#08589e'];
+
+    const chartSetting = {
+        xAxis: [
+            {
+                scaleType: 'band',
+                data: airQualityParameters,
+                // colorMap: {
+                //     type: 'ordinal',
+                //     colors
+                // }
             }
-        }
-    };
-
-    const comparisonChartData = {
-        series: compareData ? compareData.reduce((acc, item) => {
-            const existing = acc.find(series => series.name === item.ParameterName);
-            if (existing) {
-                existing.data.push({ x: item.DateForecast, y: item.AQI });
-            } else {
-                acc.push({
-                    name: item.ParameterName,
-                    data: [{ x: item.DateForecast, y: item.AQI }]
-                });
-            }
-            return acc;
-        }, []) : [],
-        options: {
-            chart: {
-                type: 'bar'
+        ],
+        yAxis: [
+            {
+                label: 'AQI',
             },
-            xaxis: {
-                type: 'datetime'
-            },
-            yaxis: {
-                title: {
-                    text: 'AQI'
-                }
-            },
-            title: {
-                text: 'Air Quality Index by Pollutant',
-                align: 'left'
-            }
-        }
-    };
+        ],
+        series: [
+            { name: 'Your Location', data: yourLocationData, label: cityName},
+            { name: 'Seattle', data: seattleData, label: 'seattle, wa'}
+        ],
+         sx: {
+            fill: '#ffffff',
+            backgroundColor: 'white',
+         },
+    }
 
-    const getComparisonDifference = () => {
-        if (!airQualityData || !compareData) return null;
-
-        const comparison = airQualityData.reduce((acc, item) => {
-            const compareItem = compareData.find(ci => ci.ParameterName === item.ParameterName);
-            if (compareItem) {
-                acc[item.ParameterName] = {
-                    userAQI: item.AQI,
-                    seattleAQI: compareItem.AQI,
-                    difference: item.AQI - compareItem.AQI
-                };
-            }
-            return acc;
-        }, {});
-
-        return comparison;
-    };
-
-    const comparisonDifference = getComparisonDifference();
-    
     return (
         <Box
             component="form"
             onSubmit={handleSubmit}
             sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}
         >
+            {/* User input and buttons */}
             <TextField
                 label="Enter city and state"
                 variant="outlined"
@@ -222,73 +183,34 @@ const ZipCodeForm = () => {
                 }}
             />
             <Button type="submit" variant="contained" color="primary">
-                Get Air Quality Data
+                Check Air Quality
             </Button>
             <Button onClick={getUserLocation} variant="contained" color="secondary">
                 Use My Location
             </Button>
-            {comparisonMode && (
-                <Button
-                    onClick={handleComparison}
-                    variant="contained"
-                    color="info"
-                    sx={{ mt: 2 }}
-                >
-                    Compare with Seattle
-                </Button>
-            )}
+
             {loading && <CircularProgress sx={{ mt: 2 }} />}
             {error && <Typography color="error">{error}</Typography>}
+            
             {airQualityData && (
                 <Box mt={4}>
-                    <Typography variant="h6" sx={{ color: 'white' }}>Air Quality Data for {cityName || 'Selected Location'}:</Typography>
-                    <Grid container spacing={2}>
-                        <Grid item xs={12} md={6}>
-                            <Chart
-                                options={chartData.options}
-                                series={chartData.series}
-                                type="bar"
-                                height={350}
-                            />
-                        </Grid>
-                        {compareData && compareData.length > 0 && (
-                            <Grid item xs={12} md={6}>
-                                <Box mt={-4}>
-                                    <Typography variant="h6" sx={{ color: 'white' }}>Comparison Chart for Seattle:</Typography>
-                                    <Chart
-                                        options={comparisonChartData.options}
-                                        series={comparisonChartData.series}
-                                        type="bar"
-                                        height={350}
-                                    />
-                                    {compareData.every(item => item.ParameterName === 'PM2.5') && (
-                                        <Typography sx={{ color: 'white', mt: 2 }}>
-                                            Note: Only PM2.5 data is available for comparison.
-                                        </Typography>
-                                    )}
-                                </Box>
-                            </Grid>
-                        )}
-                    </Grid>
-                    {comparisonDifference && (
-                        <Box mt={4}>
-                            <Typography variant="h6" sx={{ color: 'white' }}>Comparison Details:</Typography>
-                            <ul>
-                                {Object.entries(comparisonDifference).map(([param, details]) => {
-                                    const difference = details.userAQI - details.seattleAQI;
-                                    const comparison = difference > 0 ? 'worse' : difference < 0 ? 'better' : 'equal';
-                                    const severity = Math.abs(difference) <= 10 ? 'slightly' : Math.abs(difference) <= 30 ? 'moderately' : 'significantly';
-
-                                    const explanation = `The air quality for ${param} in your location is ${severity} ${comparison} than Seattle. A difference of ${Math.abs(difference)} points indicates that your area's air quality is ${comparison} affected compared to Seattle.`;
-
-                                    return (
-                                        <li key={param} style={{ color: 'white' }}>
-                                            <strong>{param}:</strong> Your location has an AQI of {details.userAQI}, while Seattle has an AQI of {details.seattleAQI}. The difference is {difference > 0 ? `+${difference}` : difference}. {explanation}
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </Box>
+                    <Typography variant="h6" sx={{ color: 'white' }}>
+                        Air Quality Data for {cityName || 'Selected Location'}:
+                    </Typography>
+                    <BarChart
+                        height={300}
+                        {...chartSetting}
+                        grid={{ horizontal: true }}
+                    />
+                    {comparisonMode && (
+                        <Button
+                            onClick={handleComparison}
+                            variant="contained"
+                            color="info"
+                            sx={{ mt: 2 }}
+                        >
+                            Compare with Seattle
+                        </Button>
                     )}
                 </Box>
             )}
@@ -298,4 +220,3 @@ const ZipCodeForm = () => {
 };
 
 export default ZipCodeForm;
-
